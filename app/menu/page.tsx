@@ -34,6 +34,10 @@ interface GroupedDishes {
   [category: string]: Dish[];
 }
 
+interface GroupedDrinks {
+  [category: string]: Drink[];
+}
+
 interface MenuData {
   categories: Category[];
   dishes: Dish[];
@@ -41,14 +45,16 @@ interface MenuData {
 }
 
 export default function MenuPage() {
-  const { cart, addItem, removeItem, updateQuantity, clearCart, getTotalItems, getTotalPrice } = useCart();
+  const { cart, addItem, removeItem, updateQuantity, clearCart, orderNow, getTotalItems, getTotalPrice } = useCart();
   const [menu, setMenu] = useState<MenuData>({ categories: [], dishes: [], drinks: [] });
   const [groupedDishes, setGroupedDishes] = useState<GroupedDishes>({});
+  const [groupedDrinks, setGroupedDrinks] = useState<GroupedDrinks>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSizes, setSelectedSizes] = useState<{ [key: string]: string }>({}); // Track selected drink sizes
   const searchParams = useSearchParams();
   const table = searchParams.get('table') || 'Unknown';
+  const recipient = process.env.HIVE_ACCOUNT || 'indies.cafe';
 
   useEffect(() => {
     async function fetchMenu() {
@@ -82,8 +88,28 @@ export default function MenuPage() {
           }
         });
 
+        const groupedDrinks: GroupedDrinks = {};
+        data.drinks.forEach((drink: Drink) => { 
+          const drinkCategories: string[] = data.categories
+            .filter((c: Category) => c.type === 'drink' && drink.categoryIds.includes(c.category_id))
+            .map((c: Category) => c.name.toUpperCase());
+          if (drinkCategories.length === 0) {
+            groupedDrinks['Uncategorized'] = groupedDrinks['Uncategorized'] || [];
+            groupedDrinks['Uncategorized'].push(drink);
+          } else {
+            drinkCategories.forEach((category) => {
+              groupedDrinks[category] = groupedDrinks[category] || [];
+              groupedDrinks[category].push(drink);
+            });
+          }
+        });
+        console.log('Grouped Dishes:', grouped);
+        console.log('Grouped Drinks:', groupedDrinks);
+
         setMenu(data);
         setGroupedDishes(grouped);
+        setGroupedDrinks(groupedDrinks);
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch menu');
         console.error('Fetch error:', err);
@@ -110,6 +136,12 @@ export default function MenuPage() {
         <div className="text-center mb-4">
           <p>Cart Items: {getTotalItems()}</p>
           <p>Total Price: €{getTotalPrice()}</p>
+          <button
+              onClick={() => clearCart()}
+              className="mt-2 bg-green-600 text-white px-4 py-2 rounded"
+            >
+              Call a Waiter
+          </button>
           <ul>
             {cart.map((item) => (
               <li key={item.id}>
@@ -143,6 +175,14 @@ export default function MenuPage() {
               Clear Cart
             </button>
           )}
+          {cart.length > 0 && (
+             <button
+              onClick={() => orderNow()}
+              className="mt-2 bg-blue-600 text-white px-4 py-2 rounded"
+            >
+              Order Now
+            </button> 
+          )}
         </div>
 
         <div className="mb-12">
@@ -153,6 +193,7 @@ export default function MenuPage() {
             Object.entries(groupedDishes).map(([category, dishes]) => (
               <div key={category} className="mb-8">
                 <h4 className="text-xl font-semibold text-gray-700 mb-4">{category}</h4>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {dishes.map((dish) => (
                     <div
@@ -177,7 +218,6 @@ export default function MenuPage() {
                             price: dish.price,
                             quantity: 1,
                             options: {},
-                            table,
                           });
                         }}
                         className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
@@ -194,57 +234,61 @@ export default function MenuPage() {
 
         <div className="mb-12">
           <h3 className="text-2xl font-bold text-gray-800 mb-4">Drinks</h3>
-          {menu.drinks.length === 0 ? (
+          {Object.keys(groupedDrinks).length === 0 ? (
             <p className="text-center text-gray-600">No drinks available.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {menu.drinks.map((drink) => (
-                <div
-                  key={drink.id}
-                  className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition"
-                >
-                  {drink.image && (
-                    <img
-                      src={`http://localhost:3000${drink.image}`}
-                      alt={drink.name}
-                      className="w-full h-40 object-cover rounded-t-lg"
-                    />
-                  )}
-                  <h5 className="text-lg font-semibold text-gray-800">{drink.name}</h5>
-                  <div className="mt-2">
-                    <select
-                      value={selectedSizes[drink.id] || drink.availableSizes[0]?.size || 'Default'}
-                      onChange={(e) => setSelectedSizes({ ...selectedSizes, [drink.id]: e.target.value })}
-                      className="w-full p-2 border rounded"
+            Object.entries(groupedDrinks).map(([category, drinks]) => (
+              <div key={category} className="mb-8">
+                <h4 className="text-xl font-semibold text-gray-700 mb-4">{category}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {drinks.map((drink) => (
+                    <div
+                      key={drink.id}
+                      className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition"
                     >
-                      {drink.availableSizes.map((size) => (
-                        <option key={size.size} value={size.size}>
-                          {size.size}: €{size.price}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const selectedSize = selectedSizes[drink.id] || drink.availableSizes[0]?.size || 'Default';
-                      const selectedPrice = drink.availableSizes.find((s) => s.size === selectedSize)?.price || '0.00';
-                      console.log('Adding drink:', drink, selectedSize);
-                      addItem({
-                        id: `${drink.id}-${selectedSize}`,
-                        name: `${drink.name} (${selectedSize})`,
-                        price: selectedPrice,
-                        quantity: 1,
-                        options: { size: selectedSize },
-                        table,
-                      });
-                    }}
-                    className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-                  >
-                    Add to Cart
-                  </button>
+                      {drink.image && (
+                        <img
+                          src={`http://localhost:3000${drink.image}`}
+                          alt={drink.name}
+                          className="w-full h-40 object-cover rounded-t-lg"
+                        />
+                      )}
+                      <h5 className="text-lg font-semibold text-gray-800">{drink.name}</h5>
+                      <div className="mt-2">
+                        <select
+                          value={selectedSizes[drink.id] || drink.availableSizes[0]?.size || 'Default'}
+                          onChange={(e) => setSelectedSizes({ ...selectedSizes, [drink.id]: e.target.value })}
+                          className="w-full p-2 border rounded"
+                        >
+                          {drink.availableSizes.map((size) => (
+                            <option key={size.size} value={size.size}>
+                              {size.size}: €{size.price}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const selectedSize = selectedSizes[drink.id] || drink.availableSizes[0]?.size || 'Default';
+                          const selectedPrice = drink.availableSizes.find((s) => s.size === selectedSize)?.price || '0.00';
+                          console.log('Adding drink:', drink, selectedSize);
+                          addItem({
+                            id: `${drink.id}-${selectedSize}`,
+                            name: `${drink.name} (${selectedSize})`,
+                            price: selectedPrice,
+                            quantity: 1,
+                            options: { size: selectedSize },
+                          });
+                        }}
+                        className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+                      >
+                        Add to Cart
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
             </div>
+            ))
           )}
         </div>
       </section>
