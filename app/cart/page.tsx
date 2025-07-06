@@ -7,6 +7,8 @@ import Link from 'next/link';
 export default function CartPage() {
   const { cart, table, removeItem, updateQuantity, clearCart, orderNow, getTotalPrice } = useCart();
 
+  console.log('Cart length:', cart.length); // Debug log to check cart items
+  console.log('Table: \'', table, ' \''); // Debug log to check cart items details
   if (cart.length === 0) {
     return (
       <div className="min-h-screen bg-gray-100 p-4 flex flex-col items-center justify-center text-center">

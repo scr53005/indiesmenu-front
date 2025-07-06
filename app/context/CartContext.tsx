@@ -1,6 +1,7 @@
 // app/context/CartContext.tsx
 'use client';
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation'; // Import useSearchParams
 
 interface CartItem {
   id: string;
@@ -8,49 +9,64 @@ interface CartItem {
   price: string; // Decimal from Prisma
   quantity: number;
   options: { [key: string]: string }; // e.g., { size: 'large', cuisson: 'medium' }
-  table: string;
 };
 
 // Define the shape of the cart context state and actions
 interface CartContextType {
   cart: CartItem[];
+  hiveOp?: string; // Optional, if you want to pass a hive operation
+  table: string | ' 203 '; // Table ID, can be set later or passed as a prop
+  // Actions
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void; // Updated for unique item identification
   updateQuantity: (id: string, newQuantity: number, options?: { [key: string]: string }, table?: string) => void; // Updated
   clearCart: () => void;
+  orderNow: () => string; // Added for orderNow functionality
   getTotalItems: () => number;
   getTotalPrice: () => string;
+  setTable: (tableId: string) => void;
 }
 
 // Create the context with a default undefined value (it will be provided by CartProvider)
 const CartContext = createContext<CartContextType>({
   cart: [],
+  hiveOp: '', // Optional, can be set later
+  table: ' 305 ', // Default table ID, can be set later or passed as a prop
+  // Default implementations for actions
   addItem: () => {},
   removeItem: () => {},
   updateQuantity: () => {},
   clearCart: () => {},
+  orderNow: () => 'default', // Default implementation for orderNow
   getTotalItems: () => 0,
   getTotalPrice: () => '0.00',
+  setTable: () => {},
 });
 
-/* from Grok
-const CartContext = createContext<{
-  cart: CartItem[];
-  addToCart: (item: CartItem) => void;
-  removeFromCart: (id: string) => void;
-}>({
-  cart: [],
-  addToCart: () => {},
-  removeFromCart: () => {},
-}); */
-
+// CartProvider component to provide the cart context to its children
+// This component will manage the cart state and provide functions to manipulate it
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const searchParams = useSearchParams(); // Initialize useSearchParams here
   const [cart, setCart] = useState<CartItem[]>([]);
+
+ const [table, setTable] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const savedTable = localStorage.getItem('cartTable');
+      // Prioritize URL parameter if available when initializing
+      const urlTable = searchParams.get('table');
+      if (urlTable) {
+        return urlTable;
+      }
+      return savedTable || null;
+    }
+    return null;
+  });
 
   // Optional: Load cart from localStorage on initial render
   useEffect(() => {
     try {
       const storedCart = localStorage.getItem('cart');
+      // const storedHiveOp = localStorage.getItem('hiveOp');
       if (storedCart) {
         setCart(JSON.parse(storedCart));
       }
@@ -64,7 +80,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // Optional: Save cart to localStorage whenever it changes
   useEffect(() => {
     try {
-      localStorage.setItem('cart', JSON.stringify(cart));
+      localStorage.setItem('cart', JSON.stringify(cart));// Save cart to localStorage
+      //localStorage.setItem('cartTable', table || 'no table value'); // Save table to localStorage
+      //localStorage.setItem('hiveOp', ''); // Save hiveOp to localStorage if needed
+      console.log('Cart saved to localStorage:', { cart, table }); // Debug log
     } catch (error) {
       console.error("Failed to save cart to localStorage:", error);
     }
@@ -85,50 +104,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  /*
-  from Grok
-  const addToCart = (item: CartItem) => {
-    setCart((prev) => [...prev, item]);
-  };
-
-  const removeFromCart = (id: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== id));
-  }; */
-
   const addItem = (item: CartItem) => {
     console.log('Adding item to cart:', item); // Debug log
     // Default options and table if not provided
     const defaultOptions = item.options || {};
-    const defaultTable = item.table || '203'; // Or some other default table ID
+    // const defaultTable = item.table || '203'; // Or some other default table ID
 
-    /* from Gemini
-    setCart((prevCart) => {
-      // Find an existing item that matches by ID, options, AND table
-      const existingItemIndex = prevCart.findIndex(
-        (cartItem) =>
-          cartItem.id === item.id &&
-          areOptionsEqual(cartItem.options, defaultOptions) &&
-          cartItem.table === defaultTable
-      );
-
-      if (existingItemIndex > -1) {
-        // If item exists, update its quantity
-        const updatedCart = [...prevCart];
-        updatedCart[existingItemIndex] = {
-          ...updatedCart[existingItemIndex],
-          quantity: updatedCart[existingItemIndex].quantity + quantityToAdd,
-        };
-        return updatedCart;
-      } else {
-        // If item is new, add it to the cart with default options/table
-        return [...prevCart, {
-          ...item,
-          quantity: quantityToAdd,
-          options: defaultOptions,
-          table: defaultTable
-        } as CartItem]; // Cast to CartItem to ensure all properties are present
-      }
-    });*/
     setCart((prev) => {
       const existingItem = prev.find((i) => i.id === item.id && i.options.size === item.options.size);
       if (existingItem) {
@@ -143,39 +124,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   };
 
-  // Updated removeItem to consider options and table for uniqueness
+  // Update removeItem to consider options for uniqueness
   const removeItem = (id: string) => {
     console.log('Removing item:', id); // Debug log
     setCart((prev) => prev.filter((item) => item.id !== id));
   };
-
-  /* from Gemini
-  // Updated updateQuantity to consider options and table for uniqueness
-  const updateQuantity = (id: string, newQuantity: number, options: { [key: string]: string } = {}, table: string = 'default') => {
-    setCart((prevCart) => {
-      const itemIndex = prevCart.findIndex(
-        (cartItem) =>
-          cartItem.id === id &&
-          areOptionsEqual(cartItem.options, options) &&
-          cartItem.table === table
-      );
-
-      if (itemIndex === -1) {
-        return prevCart; // Item not found
-      }
-
-      if (newQuantity <= 0) {
-        // If quantity is 0 or less, remove the item
-        return prevCart.filter((_, idx) => idx !== itemIndex);
-      } else {
-        // Otherwise, update the quantity
-        const updatedCart = [...prevCart];
-        updatedCart[itemIndex] = { ...updatedCart[itemIndex], quantity: newQuantity };
-        return updatedCart;
-      }
-    });
-  };
-*/
 
   const updateQuantity = (id: string, newQuantity: number) => {
     console.log('Updating quantity:', id, newQuantity); // Debug log
@@ -196,6 +149,37 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('cart'); // Clear localStorage as well
   };
 
+  const orderNow = (hiveOp?: string) => {
+    const recipient = process.env.HIVE_ACCOUNT || 'indies.cafe';
+    const amountHbd = '0.01';
+    const memo = hiveOp || 'Un serveur est appelé pour la TABLE ';
+    const finalMemo = `${memo} ${table}` ; // Handle empty original memo
+    const amountNum = parseFloat(amountHbd);
+
+    if (isNaN(amountNum)) {
+      // Consider how to handle errors, perhaps throw or return an error string
+      // For now, let's adapt the throw from the original function
+      throw new Error(`Invalid amount_hbd: ${amountHbd}`);
+    }
+
+    const operation = [
+      'transfer',
+      {
+        to: recipient,
+        amount: `${amountNum.toFixed(3)} HBD`,
+        memo: finalMemo,
+      },
+    ];
+
+    // Node.js Buffer for Base64 encoding
+    const encodedOperation = 'hive://sign/op/'+Buffer.from(JSON.stringify(operation)).toString('base64');
+    console.log('Ordering now with hiveOp: \'', encodedOperation, '\''); // Debug log
+    // Here you would typically send the cart to your backend or Hive operation
+    // For now, just clear the cart after ordering
+    clearCart();
+    return encodedOperation; // Return the hive operation URL
+  };
+
   const getTotalItems = () => {
     return cart.reduce((total, item) => total + item.quantity, 0);
   };
@@ -213,12 +197,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     <CartContext.Provider
       value={{
         cart,
+        hiveOp: '', // Optional, can be set later
+        table: table || ' 203 ', // Default table ID, can be set later or passed as a prop
+
         addItem,
         removeItem,
         updateQuantity,
         clearCart,
+        orderNow,
         getTotalItems,
         getTotalPrice,
+        setTable: (tableId: string) => {
+          console.log('Setting table:', tableId); // Debug log
+          setTable(tableId);
+          localStorage.setItem('cartTable', tableId); // Save to localStorage
+        }
       }}
     >
       {children}

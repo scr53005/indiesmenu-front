@@ -45,7 +45,7 @@ interface MenuData {
 }
 
 export default function MenuPage() {
-  const { cart, addItem, removeItem, updateQuantity, clearCart, orderNow, getTotalItems, getTotalPrice } = useCart();
+  const { cart, addItem, removeItem, updateQuantity, clearCart, orderNow, getTotalItems, getTotalPrice, setTable } = useCart();
   const [menu, setMenu] = useState<MenuData>({ categories: [], dishes: [], drinks: [] });
   const [groupedDishes, setGroupedDishes] = useState<GroupedDishes>({});
   const [groupedDrinks, setGroupedDrinks] = useState<GroupedDrinks>({});
@@ -57,10 +57,15 @@ export default function MenuPage() {
   const recipient = process.env.HIVE_ACCOUNT || 'indies.cafe';
 
   useEffect(() => {
+
+    // Set the table number in the cart context
+    setTable(table);
+    console.log('Table in cart set to: ', table);
+
     async function fetchMenu() {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:3000/api/menu', {
+        const response = await fetch('http://192.168.178.55:3000/api/menu', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -123,6 +128,33 @@ export default function MenuPage() {
   if (loading) return <div className="p-4 text-center text-xl">Loading...</div>;
   if (error) return <div className="p-4 text-center text-red-500 text-xl">Error: {error}</div>;
 
+  const handleCallWaiter = () => {
+    try {
+      const hiveUrl = orderNow(); // Pass table explicitly or rely on cart.table
+      const fallbackUrl = 'https://play.google.com/store/apps/details?id=com.hivekeychain'; // Android
+      const iosFallbackUrl = 'https://apps.apple.com/us/app/hive-keychain/id1550923076'; // iOS
+
+      // Attempt to open Hive Keychain
+      window.location.href = hiveUrl;
+
+      // Fallback if app is not installed
+      setTimeout(() => {
+        if (document.hasFocus()) {
+          if (navigator.userAgent.includes('Android')) {
+            window.location.href = fallbackUrl;
+          } else if (navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad')) {
+            window.location.href = iosFallbackUrl;
+          } else {
+            alert(navigator.userAgent + ' - Please install the Hive Keychain app / extension to proceed.');
+          }
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Error in handleCallWaiter:', error);
+      alert('Failed to process the request. Please try again.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       <section className="bg-cover bg-center h-64 flex items-center justify-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1414235077428-338989a2e8c0)' }}>
@@ -137,7 +169,7 @@ export default function MenuPage() {
           <p>Cart Items: {getTotalItems()}</p>
           <p>Total Price: €{getTotalPrice()}</p>
           <button
-              onClick={() => clearCart()}
+              onClick={handleCallWaiter}
               className="mt-2 bg-green-600 text-white px-4 py-2 rounded"
             >
               Call a Waiter

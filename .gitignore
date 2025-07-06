@@ -42,3 +42,7 @@ next-env.d.ts
 
 /app/generated/prisma
 /app/menu/page.test.tsx
+
+# test files
+*.test.tsx
+*.test.ts  

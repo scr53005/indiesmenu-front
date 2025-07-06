@@ -32,6 +32,7 @@ export function distriate(tag?: string): string {
     return `${effectiveTag}-inno-${randomPart1}-${randomPart2}`;
 }
 
+
 export function generateDistriatedHiveOp(recipient: string, amountHbd: string, memo: string): string {
   const distriateSuffix = distriate(); // Call without args to use 'kcs' default
   const finalMemo = memo ? `${memo} ${distriateSuffix}` : distriateSuffix; // Handle empty original memo
