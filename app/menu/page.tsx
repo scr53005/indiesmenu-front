@@ -65,7 +65,7 @@ export default function MenuPage() {
     async function fetchMenu() {
       try {
         setLoading(true);
-        const response = await fetch('http://192.168.178.55:3000/api/menu', {
+        const response = await fetch('https://indiesmenu-bxlqfplha-sorin-cristescus-projects.vercel.app/api/menu', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
