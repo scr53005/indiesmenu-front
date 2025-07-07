@@ -66,7 +66,7 @@ export default function MenuPage() {
     async function fetchMenu() {
       try {
         setLoading(true);
-        const response = await fetch(API_BASE_URL, {
+        const response = await fetch('https://'+API_BASE_URL, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
