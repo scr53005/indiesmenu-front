@@ -55,6 +55,7 @@ export default function MenuPage() {
   const searchParams = useSearchParams();
   const table = searchParams.get('table') || 'Unknown';
   const recipient = process.env.HIVE_ACCOUNT || 'indies.cafe';
+  const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:3000/api/menu';
 
   useEffect(() => {
 
@@ -65,7 +66,7 @@ export default function MenuPage() {
     async function fetchMenu() {
       try {
         setLoading(true);
-        const response = await fetch('https://indiesmenu-bxlqfplha-sorin-cristescus-projects.vercel.app/api/menu', {
+        const response = await fetch(API_BASE_URL, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -129,6 +130,8 @@ export default function MenuPage() {
   if (error) return <div className="p-4 text-center text-red-500 text-xl">Error: {error}</div>;
 
   const handleCallWaiter = () => {
+    console.log('Calling waiter for table:', table);
+    alert(`Waiter called for table ${table}.`);
     try {
       const hiveUrl = orderNow(); // Pass table explicitly or rely on cart.table
       const fallbackUrl = 'https://play.google.com/store/apps/details?id=com.hivekeychain'; // Android
@@ -154,6 +157,34 @@ export default function MenuPage() {
       alert('Failed to process the request. Please try again.');
     }
   };
+
+  const handleOrder = () => {
+    console.log('Order Now clicked for table :', table  );
+    try {
+      const hiveUrl = orderNow(); // Pass table explicitly or rely on cart.table
+      const fallbackUrl = 'https://play.google.com/store/apps/details?id=com.hivekeychain'; // Android
+      const iosFallbackUrl = 'https://apps.apple.com/us/app/hive-keychain/id1550923076'; // iOS
+
+      // Attempt to open Hive Keychain
+      window.location.href = hiveUrl;
+
+      // Fallback if app is not installed
+      setTimeout(() => {
+        if (document.hasFocus()) {
+          if (navigator.userAgent.includes('Android')) {
+            window.location.href = fallbackUrl;
+          } else if (navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad')) {
+            window.location.href = iosFallbackUrl;
+          } else {
+            alert(navigator.userAgent + ' - Please install the Hive Keychain app / extension to proceed.');
+          }
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Error in handleOrder:', error);
+      alert('Failed to process the request. Please try again.');
+    }
+  };  
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -209,7 +240,7 @@ export default function MenuPage() {
           )}
           {cart.length > 0 && (
              <button
-              onClick={() => orderNow()}
+              onClick={handleOrder}
               className="mt-2 bg-blue-600 text-white px-4 py-2 rounded"
             >
               Order Now
